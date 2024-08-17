@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "nonebot-adapter-opq"
+version = "0.1.0"
+description = "OPQBot adapter for nonebot2"
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+nonebot2 = "^2.3.2"
+pillow = "^10.4.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
