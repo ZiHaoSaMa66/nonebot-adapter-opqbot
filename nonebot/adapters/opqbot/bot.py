@@ -22,7 +22,7 @@ from .utils import FileType, _resolve_data_type, get_image_size
 from .models import BaseResponse, Response, UploadImageVoiceResponse, SendMsgResponse, UploadForwardMsgResponse
 from nonebot.utils import logger_wrapper
 
-log = logger_wrapper("OPQBOT")
+from .log import log
 
 
 class Bot(BaseBot):
@@ -71,7 +71,7 @@ class Bot(BaseBot):
         params["qq"] = self.self_id
 
         ret = None
-        log("INFO", f"request to OPQ | params:[{params}] payload:[{payload}]")
+        log("INFO", f"API请求数据: payload:[{payload}]")
         try:
             resp = await self.adapter.request(Request(
                 method,
@@ -83,13 +83,12 @@ class Bot(BaseBot):
             ret = json.loads(resp.content)
             resp_model = Response(**ret)
             if resp_model.CgiBaseResponse.Ret == 0:
-                log("SUCCESS", ret)
+                log("SUCCESS", f"API返回: {ret}")
             else:
-                log("ERROR", ret)
+                log("ERROR", f"API返回: {ret}")
             return resp_model.ResponseData
         except Exception as e:
-            print(e)
-            log("ERROR", f"接口返回数据：{ret}")
+            log("ERROR", f"{e} \r\n API返回：{ret}")
             return None
 
     def build_request(self, request, cmd="MessageSvc.PbSendMsg") -> dict:
@@ -277,7 +276,7 @@ class Bot(BaseBot):
                         }
                     )
                     news.append({"text": f"QQ用户: {text}"})
-        json_template["meta"]["detail"]["news"] = news
+        json_template["meta"]["detail"]["news"] = news[:4]
         json_template["meta"]["detail"]["summary"] = f"查看{len(msg_bodys)}条转发消息"
 
         payload = {
@@ -506,7 +505,7 @@ class Bot(BaseBot):
     ) -> SendMsgResponse:
         """
         回复消息
-        :param event: event对象
+        :param event: event对象(只能在好友和群聊回复,不支持临时会话)
         :param message: message对象
         :return: api返回数据
         """

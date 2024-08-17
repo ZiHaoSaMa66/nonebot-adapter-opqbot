@@ -43,7 +43,7 @@ class Adapter(BaseAdapter):
     @classmethod
     @override
     def get_name(cls) -> str:
-        return "OPQ_adapter"
+        return "OPQ"
 
     @override
     async def _call_api(self, bot: Bot, api: str, **data: Any) -> Any:
