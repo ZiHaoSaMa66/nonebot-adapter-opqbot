@@ -19,7 +19,16 @@ from pathlib import Path
 if TYPE_CHECKING:
     from .adapter import Adapter
 from .utils import FileType, _resolve_data_type, get_image_size
-from .models import BaseResponse, Response, UploadImageVoiceResponse, SendMsgResponse, UploadForwardMsgResponse
+from .models import (
+    BaseResponse,
+    Response,
+    UploadImageVoiceResponse,
+    SendMsgResponse,
+    UploadForwardMsgResponse,
+    GetGroupListResponse,
+    GetGroupMemberListResponse,
+    MemberLists
+)
 from nonebot.utils import logger_wrapper
 
 from .log import log
@@ -121,6 +130,45 @@ class Bot(BaseBot):
         return await self.baseRequest(
             "GET", funcname=funcname, path=path, params=params, timeout=timeout
         )
+
+    async def get_status(self) -> dict:
+        """
+        获取OPQ框架信息 (机器人在线列表等等)
+        :return:
+        """
+        request = self.build_request({}, cmd="ClusterInfo")
+        res = await self.post(request)
+        return res
+
+    async def get_group_member_list(self, group_id: int) -> List[MemberLists]:
+        """
+        获取群成员信息
+        :param group_id: 群号(event.group_id)
+        :return: List[MemberLists]
+        """
+        lastbuffer = "null"
+        memberlist = []
+        while lastbuffer:
+            payload = {
+                "GroupCode": group_id,
+                "LastBuffer": lastbuffer if lastbuffer != "null" else None
+            }
+            request = self.build_request(payload, cmd="GetGroupMemberLists")
+            res = await self.post(request)
+            data = GetGroupMemberListResponse(**res)
+            memberlist += data.MemberLists
+            lastbuffer = data.LastBuffer
+
+        return memberlist
+
+    async def get_group_list(self) -> GetGroupListResponse:
+        """
+        获取群列表
+        :return: GetGroupListResponse
+        """
+        request = self.build_request({}, cmd="GetGroupLists")
+        res = await self.post(request)
+        return GetGroupListResponse(**res)
 
     async def send_forward_msg(
             self,
@@ -300,6 +348,11 @@ class Bot(BaseBot):
         )
         res = await self.adapter.request(req)
         return res.content
+
+    async def get_group_file_url(
+            self
+    ):
+        pass
 
     async def upload_group_file(
             self,

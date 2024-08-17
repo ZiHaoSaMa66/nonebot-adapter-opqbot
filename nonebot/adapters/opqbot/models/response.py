@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional, Any, List
 from pydantic import BaseModel, model_validator
@@ -34,3 +35,32 @@ class SendMsgResponse(BaseModel):
 
 class UploadForwardMsgResponse(BaseModel):
     ResId: str
+
+
+class GroupData(BaseModel):
+    CreateTime: datetime
+    GroupCnt: int
+    GroupCode: int
+    GroupName: str
+    MemberCnt: int
+
+
+class GetGroupListResponse(BaseModel):
+    GroupLists: List[GroupData]
+
+
+class MemberLists(BaseModel):
+    CreditLevel: int
+    GroupCard: Optional[str]
+    JoinTime: datetime
+    LastSpeakTime: datetime
+    Level: int
+    MemberFlag: int
+    Nick: str
+    Uid: str
+    Uin: int
+
+
+class GetGroupMemberListResponse(BaseModel):
+    LastBuffer: str
+    MemberLists: List[MemberLists]
