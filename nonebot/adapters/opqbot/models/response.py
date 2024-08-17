@@ -30,3 +30,7 @@ class UploadImageVoiceResponse(BaseModel):
 class SendMsgResponse(BaseModel):
     MsgTime: int
     MsgSeq: int
+
+
+class UploadForwardMsgResponse(BaseModel):
+    ResId: str

@@ -89,7 +89,7 @@ def _resolve_data_type(data: _T_Data) -> Tuple[FileType, _T_Data]:
     assert False, "正常情况下这里应该是执行不到的"
 
 
-def get_image_size(data: Union[bytes, BytesIO, str, Path]):
+def get_image_size(data: Union[bytes, BytesIO, str, Path]) -> Tuple[int, int]:
     """获取图像尺寸
     :param data: 目标图像。接收图像路径或图像二进制数据
     :return: (长, 宽)
@@ -104,4 +104,4 @@ def get_image_size(data: Union[bytes, BytesIO, str, Path]):
     else:
         raise TypeError("参数类型有误")
     width, height = image.size
-    return width, height
+    return height, width

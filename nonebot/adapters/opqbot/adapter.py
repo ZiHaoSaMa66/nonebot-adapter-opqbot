@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, Callable
 from typing_extensions import override
 from .log import log
 from nonebot import get_plugin_config
@@ -47,8 +47,8 @@ class Adapter(BaseAdapter):
 
     @override
     async def _call_api(self, bot: Bot, api: str, **data: Any) -> Any:
-        log("DEBUG", f"Bot {bot.bot_info.id} calling API <y>{api}</y>")
-        api_handler: Optional[API] = getattr(bot.__class__, api, None)
+        log("DEBUG", f"Bot {bot.self_id} calling API <y>{api}</y>")
+        api_handler: Optional[Callable[..., Any]] = getattr(bot.__class__, api, None)
         if api_handler is None:
             raise "无API"
         return await api_handler(bot, **data)
@@ -82,8 +82,9 @@ class Adapter(BaseAdapter):
             event_name = payload.get('CurrentPacket').get('EventName', None)
             event_model = EVENT_CLASSES.get(event_name, None)
             event = type_validate_python(event_model, payload)
-            if event.CurrentPacket.EventData.MsgBody:  # 有MsgBody才处理
-                return event
+            if not event.CurrentPacket.EventData.MsgBody and event.get_type() == "message":  # message消息无MsgBody就跳过
+                return
+            return event
         except Exception as e:
             # 无法正常解析为具体 Event 时，给出日志提示
             log(

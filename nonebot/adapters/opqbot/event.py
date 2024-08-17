@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import message
 from typing_extensions import override
 from typing import Optional, List, Union, TypeVar, Type, Dict, Any
@@ -7,7 +9,7 @@ from nonebot.utils import escape_tag
 
 from nonebot.adapters import Event as BaseEvent
 from nonebot.compat import model_dump
-from .models import MsgBody,CurrentPacket
+from .models import MsgBody, CurrentPacket
 from .message import Message, MessageSegment
 
 
@@ -15,13 +17,13 @@ class EventType(str, Enum):
     LOGIN_SUCCESS = "ON_EVENT_LOGIN_SUCCESS"
     NETWORK_CHANGE = "ON_EVENT_NETWORK_CHANGE"
     GROUP_NEW_MSG = "ON_EVENT_GROUP_NEW_MSG"
-    ON_EVENT_GROUP_MSG_REVOKE = "ON_EVENT_GROUP_MSG_REVOKE"
-    # {"CurrentPacket":{"EventData":{"MsgHead":{"FromUin":1049861898,"FromUid":"1049861898","ToUin":2650508015,"ToUid":"u_4j7oTCchSHKeuf_-1A6asQ","FromType":2,"SenderUin":1049861898,"SenderUid":"1049861898","SenderNick":"","MsgType":732,"C2cCmd":17,"MsgSeq":19824,"MsgTime":1723565922,"MsgRandom":0,"MsgUid":144115188085883612,"GroupInfo":null,"C2CTempMessageHead":null},"MsgBody":null,"Event":null},"EventName":"ON_EVENT_GROUP_MSG_REVOKE"},"CurrentQQ":2650508015}
+    GROUP_MSG_REVOKE = "ON_EVENT_GROUP_MSG_REVOKE"
     FRIEND_NEW_MSG = "ON_EVENT_FRIEND_NEW_MSG"
     FRIEND_SYSTEM_MSG_NOTIFY = "ON_EVENT_FRIEND_SYSTEM_MSG_NOTIFY"
     GROUP_JOIN = "ON_EVENT_GROUP_JOIN"
     GROUP_EXIT = "ON_EVENT_GROUP_EXIT"
     GROUP_SYSTEM_MSG_NOTIFY = "ON_EVENT_GROUP_SYSTEM_MSG_NOTIFY"
+
 
 class Sender(BaseModel):
     user_id: int
@@ -29,24 +31,34 @@ class Sender(BaseModel):
     sender_uid: str
 
 
+class MessageId(BaseModel):
+    seq: int
+    time: int
+    uid: int
+
+
 class Event(BaseEvent):
+    """Event"""
     __type__: EventType
     # CurrentPacket: CurrentPacket
     CurrentQQ: int  # "Bot QQ号")
-    CurrentPacket:CurrentPacket
-    time: int
+    CurrentPacket: CurrentPacket
+    time: datetime
+    # time: int
     message_type: str
     # sub_type: str
     group_id: Optional[int]
     user_id: int
     group_name: Optional[str]
     message: Message = Message()
-    # message_id: MessageId
+    message_id: MessageId
     message_random: int
-    message_uid: int
-    message_seq: int
+    # message_time: int
+    # message_uid: int
+    # message_seq: int
     raw_message: dict
     sender: Sender
+
     @override
     def get_event_name(self) -> str:
         return self.__type__.name
@@ -100,7 +112,6 @@ class Event(BaseEvent):
             for key in keys:
                 if nested:
                     nested = nested.get(key, {})
-            # if nested:  # 确保 nested 非空
             target[new_key] = nested
 
         values["raw_message"] = values.copy()
@@ -112,14 +123,17 @@ class Event(BaseEvent):
                              "user_id": ["SenderUin"],
                              "group_name": ["GroupInfo", "GroupName"],
                              "message_random": ["MsgRandom"],
-                             "message_uid": ["MsgUid"],
-                             "message_seq": ["MsgSeq"],
-                             "message_type": ["FromType"],
                          } | ({"group_id": ["GroupInfo", "GroupCode"]} if msg_head.get("GroupInfo")
                               else {"group_id": ['C2CTempMessageHead', 'GroupCode']})  # 需要提取的字段
         for k, v in transform_dict.items():
             flatten_and_update(values, msg_head, k, v)
             # flatten_and_update(values, event_data, "raw_message", ["MsgBody"])
+        values["message_type"] = {1: "friend", 2: "group", 3: "private"}.get(msg_head.get("FromType"), "unknown")
+        values["message_id"] = {
+            "seq": msg_head.get('MsgSeq'),
+            "time": msg_head.get('MsgTime'),
+            "uid": msg_head.get('MsgUid')
+        }
         values["sender"] = {
             "user_id": msg_head.get('SenderUin'),
             "nickname": msg_head.get('SenderNick'),
@@ -131,16 +145,15 @@ class Event(BaseEvent):
             values["message"] = Message()
         return values
 
-    @field_validator('message_type', mode='before')
-    def validate_message_type(cls, v):
-        return {1: "friend", 2: "group", 3: "private"}.get(v, "unknown")
+    # @field_validator('time', mode='before')
+    # def validate_time(cls, v):
+    #     return datetime.fromtimestamp(v)
 
     # @field_validator('message', mode='after')
     # def validate_message(cls, v, values):
     #     cls.build_message()
     #     return v
     #     # 解析不到消息就塞一条空文本
-
 
 
 E = TypeVar("E", bound="Event")
@@ -155,7 +168,7 @@ def register_event_class(event_class: Type[E]) -> Type[E]:
 
 @register_event_class
 class GroupMessageEvent(Event):
-    """消息事件"""
+    """群消息事件"""
     __type__ = EventType.GROUP_NEW_MSG
     at_users: Optional[List[Sender]]
 
@@ -195,9 +208,19 @@ class GroupMessageEvent(Event):
 
 @register_event_class
 class FriendMessageEvent(Event):
-    """消息事件"""
+    """好友消息事件"""
     __type__ = EventType.FRIEND_NEW_MSG
 
     @override
     def get_type(self) -> str:
         return "message"
+
+
+@register_event_class
+class GroupMessageRevokeEvent(Event):
+    """群撤回事件"""
+    __type__ = EventType.GROUP_MSG_REVOKE
+
+    @override
+    def get_type(self) -> str:
+        return "notice"
