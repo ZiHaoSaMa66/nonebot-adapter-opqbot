@@ -41,7 +41,6 @@ class MessageId(BaseModel):
 class Event(BaseEvent):
     @override
     def get_type(self) -> str:
-        # 现阶段Red协议只有message事件
         return "event"
 
     @override
@@ -245,7 +244,7 @@ class FriendMessageEvent(MessageEvent):
 
 
 class NoticeEvent(Event):
-    """群撤回事件"""
+    """通知类"""
     __type__ = EventType
     CurrentQQ: int  # "Bot QQ号")
 
@@ -291,7 +290,7 @@ class GroupMessageRevokeEvent(NoticeEvent):
 
 @register_event_class
 class BotLogin(NoticeEvent):
-    """群撤回事件"""
+    """Bot登录事件"""
     __type__ = EventType.LOGIN_SUCCESS
     CurrentQQ: int  # "Bot QQ号")
 
