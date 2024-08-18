@@ -1,10 +1,12 @@
 [tool.poetry]
 name = "nonebot-adapter-opq"
-version = "0.1.0"
+version = "0.1.1"
 description = "OPQBot adapter for nonebot2"
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
 readme = "README.md"
+
+packages = [{ include = "nonebot" }]
 
 [tool.poetry.dependencies]
 python = "^3.9"
