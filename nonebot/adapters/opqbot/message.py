@@ -5,7 +5,7 @@ from pathlib import Path
 from io import BytesIO
 
 from nonebot.adapters import Message as BaseMessage, MessageSegment as BaseMessageSegment
-from models import MsgBody
+from .models import MsgBody
 
 
 class MessageSegment(BaseMessageSegment["Message"]):

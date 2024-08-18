@@ -2,7 +2,6 @@ import asyncio
 import base64
 import functools
 import re
-import httpx
 from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, List, Tuple, Union
