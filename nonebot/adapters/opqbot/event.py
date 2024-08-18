@@ -156,16 +156,16 @@ class MessageEvent(Event):
             flatten_and_update(values, msg_head, k, v)
             # flatten_and_update(values, event_data, "raw_message", ["MsgBody"])
         values["message_type"] = {1: "friend", 2: "group", 3: "private"}.get(msg_head.get("FromType"), "unknown")
-        values["message_id"] = {
-            "seq": msg_head.get('MsgSeq'),
-            "time": msg_head.get('MsgTime'),
-            "uid": msg_head.get('MsgUid')
-        }
-        values["sender"] = {
-            "user_id": msg_head.get('SenderUin'),
-            "nickname": msg_head.get('SenderNick'),
-            "user_uid": msg_head.get('SenderUid')
-        }  # 发送消息的人
+        values["message_id"] = MessageId(
+            seq=msg_head.get('MsgSeq'),
+            time=msg_head.get('MsgTime'),
+            uid=msg_head.get('MsgUid')
+        )
+        values["sender"] = Sender(
+            user_id=msg_head.get('SenderUin'),
+            nickname=msg_head.get('SenderNick'),
+            user_uid=msg_head.get('SenderUid'),
+        )  # 发送消息的人
         if body := msg_body:
             values["message"] = Message.build_message(MsgBody(**body))
         else:
@@ -223,11 +223,11 @@ class GroupMessageEvent(MessageEvent):
         at_uin_lists = msg_body.get("AtUinLists") or []
         at_users = []
         for at_user in at_uin_lists:
-            at_users.append({
-                "user_id": at_user.get('Uin'),
-                "nickname": at_user.get('Nick'),
-                "sender_uid": at_user.get('Uid')
-            })
+            at_users.append(Sender(
+                user_id=at_user.get('Uin'),
+                nickname=at_user.get('Nick'),
+                user_uid=at_user.get('Uid'),
+            ))
 
         values["at_users"] = at_users
         return values
