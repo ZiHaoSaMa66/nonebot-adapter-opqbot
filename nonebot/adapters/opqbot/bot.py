@@ -394,9 +394,26 @@ class Bot(BaseBot):
         return res.content
 
     async def get_group_file_url(
-            self
+            self,
+            group_id: int,
+            fileid: str
     ):
-        pass
+        """
+        获取群文件的下载链接
+        :param group_id: 群号
+        :param fileid: file类型message的fileid
+        :return:
+        """
+        request = self.build_request(
+            {
+                "OpCode": 1750,
+                "ToUin": group_id,
+                "FileId": fileid
+            },
+            cmd="SsoGroup.File"
+        )
+        res = await self.post(request)
+        return res
 
     async def upload_group_file(
             self,
