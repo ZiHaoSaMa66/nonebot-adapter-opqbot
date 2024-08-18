@@ -37,6 +37,7 @@ class Adapter(BaseAdapter):
         self.task: Optional[asyncio.Task] = None  # 存储 ws 任务
         self.ws_url = f"ws://{self.adapter_config.url}/ws"
         self.http_url: str = f"http://{self.adapter_config.url}"
+        self.bot_ids: list[int] = self.adapter_config.bots
 
         self.setup()
 
@@ -102,7 +103,9 @@ class Adapter(BaseAdapter):
             method="GET",
             url=self.ws_url,
         )
-        bots: Dict[int, Bot] = {}  # QQ号
+        for bot_id in self.bot_ids:
+            bot = Bot(self, self_id=str(bot_id))
+            self.bot_connect(bot)
         while True:
             try:
                 log("INFO", f"Attempting to connect to server at {self.ws_url}")
@@ -115,11 +118,12 @@ class Adapter(BaseAdapter):
                             if not payload:
                                 continue
                             if event := self.payload_to_event(json.loads(payload)):
-                                if event.CurrentQQ not in bots:
-                                    bot = Bot(self, str(event.CurrentQQ))
-                                    self.bot_connect(bot)
-                                    bots[event.CurrentQQ] = bot  # 保存所有bot对象
-                                task = bots[event.CurrentQQ].handle_event(event)
+                                if event.CurrentQQ not in self.bot_ids:
+                                    return
+
+                                    # bots[event.CurrentQQ] = bot  # 保存所有bot对象
+                                # bot
+                                task = self.bots[str(event.CurrentQQ)].handle_event(event)
                                 asyncio.create_task(task)
                     except WebSocketClosed as e:
                         log(
@@ -137,10 +141,9 @@ class Adapter(BaseAdapter):
                         )
                     finally:
                         # 这里要断开 Bot 连接
-                        if bots:
-                            for bot in bots.values():
-                                self.bot_disconnect(bot)
-                            bots = {}
+                        bots = self.bots.copy()
+                        for bot in bots.values():
+                            self.bot_disconnect(bot)
             except Exception as e:
                 # 尝试重连
                 log(
