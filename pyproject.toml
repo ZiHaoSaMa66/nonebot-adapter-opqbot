@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "nonebot-adapter-opq"
+name = "nonebot-adapter-opqbot"
 version = "0.1.2"
 description = "OPQBot adapter for nonebot2"
 authors = ["Your Name <you@example.com>"]
