@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nonebot-adapter-opq"
-version = "0.1.1"
+version = "0.1.2"
 description = "OPQBot adapter for nonebot2"
 authors = ["Your Name <you@example.com>"]
 license = "MIT"
