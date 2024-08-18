@@ -23,12 +23,13 @@ class EventType(str, Enum):
     GROUP_JOIN = "ON_EVENT_GROUP_JOIN"
     GROUP_EXIT = "ON_EVENT_GROUP_EXIT"
     GROUP_SYSTEM_MSG_NOTIFY = "ON_EVENT_GROUP_SYSTEM_MSG_NOTIFY"
+    GROUP_INVITE = "ON_EVENT_GROUP_INVITE"
 
 
 class Sender(BaseModel):
     user_id: int
     nickname: str
-    sender_uid: str
+    user_uid: str
 
 
 class MessageId(BaseModel):
@@ -38,13 +39,43 @@ class MessageId(BaseModel):
 
 
 class Event(BaseEvent):
+    @override
+    def get_type(self) -> str:
+        # 现阶段Red协议只有message事件
+        return "event"
+
+    @override
+    def get_event_name(self) -> str:
+        # 返回事件的名称，用于日志打印
+        return "event"
+
+    @override
+    def get_event_description(self) -> str:
+        return escape_tag(str(model_dump(self)))
+
+    @override
+    def get_message(self):
+        raise ValueError("Event has no message!")
+
+    @override
+    def get_user_id(self) -> str:
+        raise ValueError("Event has no context!")
+
+    @override
+    def get_session_id(self) -> str:
+        raise ValueError("Event has no context!")
+
+    @override
+    def is_tome(self) -> bool:
+        raise ValueError("Event has no context!")
+
+
+class MessageEvent(Event):
     """Event"""
     __type__: EventType
-    # CurrentPacket: CurrentPacket
     CurrentQQ: int  # "Bot QQ号")
     CurrentPacket: CurrentPacket
     time: datetime
-    # time: int
     message_type: str
     # sub_type: str
     group_id: Optional[int]
@@ -53,9 +84,6 @@ class Event(BaseEvent):
     message: Message = Message()
     message_id: MessageId
     message_random: int
-    # message_time: int
-    # message_uid: int
-    # message_seq: int
     raw_message: dict
     sender: Sender
 
@@ -137,7 +165,7 @@ class Event(BaseEvent):
         values["sender"] = {
             "user_id": msg_head.get('SenderUin'),
             "nickname": msg_head.get('SenderNick'),
-            "sender_uid": msg_head.get('SenderUid')
+            "user_uid": msg_head.get('SenderUid')
         }  # 发送消息的人
         if body := msg_body:
             values["message"] = Message.build_message(MsgBody(**body))
@@ -167,7 +195,7 @@ def register_event_class(event_class: Type[E]) -> Type[E]:
 
 
 @register_event_class
-class GroupMessageEvent(Event):
+class GroupMessageEvent(MessageEvent):
     """群消息事件"""
     __type__ = EventType.GROUP_NEW_MSG
     at_users: Optional[List[Sender]]
@@ -207,7 +235,7 @@ class GroupMessageEvent(Event):
 
 
 @register_event_class
-class FriendMessageEvent(Event):
+class FriendMessageEvent(MessageEvent):
     """好友消息事件"""
     __type__ = EventType.FRIEND_NEW_MSG
 
@@ -216,11 +244,81 @@ class FriendMessageEvent(Event):
         return "message"
 
 
+class NoticeEvent(Event):
+    """群撤回事件"""
+    __type__ = EventType
+    CurrentQQ: int  # "Bot QQ号")
+
+    @override
+    def get_type(self) -> str:
+        return "notice"
+
+    @override
+    def get_event_name(self) -> str:
+        return self.__type__.name
+
+    @override
+    def get_event_description(self) -> str:
+        return escape_tag(str(model_dump(self)))
+
+    @override
+    def get_message(self) -> Message:
+        raise ValueError("Event has no context!")
+
+    @override
+    def get_user_id(self) -> str:
+        raise ValueError("Event has no context!")
+
+    @override
+    def get_session_id(self) -> str:
+        raise ValueError("Event has no context!")
+
+    @override
+    def is_tome(self) -> bool:
+        raise ValueError("Event has no context!")
+
+
 @register_event_class
-class GroupMessageRevokeEvent(Event):
+class GroupMessageRevokeEvent(NoticeEvent):
     """群撤回事件"""
     __type__ = EventType.GROUP_MSG_REVOKE
 
     @override
     def get_type(self) -> str:
         return "notice"
+
+
+
+@register_event_class
+class BotLogin(NoticeEvent):
+    """群撤回事件"""
+    __type__ = EventType.LOGIN_SUCCESS
+    CurrentQQ: int  # "Bot QQ号")
+
+    @override
+    def get_type(self) -> str:
+        return "notice"
+
+    @override
+    def get_event_name(self) -> str:
+        return self.__type__.name
+
+    @override
+    def get_event_description(self) -> str:
+        return escape_tag(str(model_dump(self)))
+
+    @override
+    def get_message(self) -> Message:
+        raise ValueError("Event has no context!")
+
+    @override
+    def get_user_id(self) -> str:
+        raise ValueError("Event has no context!")
+
+    @override
+    def get_session_id(self) -> str:
+        raise ValueError("Event has no context!")
+
+    @override
+    def is_tome(self) -> bool:
+        raise ValueError("Event has no context!")

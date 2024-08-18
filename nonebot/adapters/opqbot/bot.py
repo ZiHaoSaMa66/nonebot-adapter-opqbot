@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Union, Any, TYPE_CHECKING, Optional, List
+from typing import Union, Any, TYPE_CHECKING, Optional, List, Annotated
 
 # import bot
 from typing_extensions import override
@@ -13,7 +13,7 @@ from .message import Message, MessageSegment
 import json
 from pydantic import BaseModel
 import base64
-# from pydantic import
+from pydantic import Field
 from pathlib import Path
 
 if TYPE_CHECKING:
@@ -131,6 +131,27 @@ class Bot(BaseBot):
             "GET", funcname=funcname, path=path, params=params, timeout=timeout
         )
 
+    async def send_poke(self, group_id: int, user_id: int):
+        """
+        戳一戳
+        :param group_id: 群号(event.group_id)
+        :param user_id: qq号(event.user_id)
+        :return:
+        """
+        request = self.build_request({"GroupCode": group_id, "Uin": user_id}, cmd="SsoGroup.Op.Pat")
+        res = await self.post(request)
+        return res
+
+    async def send_like(self, user_uid: str):
+        """
+        好友点赞
+        :param user_uid: uid(event.Sender.user_uid)
+        :return:
+        """
+        request = self.build_request({"Uid": user_uid}, cmd="SsoFriend.Op.Zan")
+        res = await self.post(request)
+        return res
+
     async def get_status(self) -> dict:
         """
         获取OPQ框架信息 (机器人在线列表等等)
@@ -169,6 +190,29 @@ class Bot(BaseBot):
         request = self.build_request({}, cmd="GetGroupLists")
         res = await self.post(request)
         return GetGroupListResponse(**res)
+
+    async def set_group_ban(
+            self,
+            group_id: int,
+            user_uid: str,
+            duration: int
+    ):
+        """
+        禁言群组成员
+        :param group_id: 群号 (event.group_id)
+        :param user_uid: 成员uid(event.Sender.user_uid)
+        :param duration: 禁言秒数 至少60秒 至多30天 禁言一天为24*3600=86400 参数为0解除禁言
+        :return:
+        """
+        payload = {
+            "OpCode": 4691,
+            "GroupCode": group_id,
+            "Uid": user_uid,
+            "BanTime": duration
+        }
+        request = self.build_request(payload, cmd="SsoGroup.Op")
+        res = await self.post(request)
+        return res
 
     async def send_forward_msg(
             self,

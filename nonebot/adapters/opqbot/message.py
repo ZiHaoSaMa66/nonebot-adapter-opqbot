@@ -49,10 +49,12 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @staticmethod
     def file(
-            file: Union[str, bytes, BytesIO, Path],
+            filename: str,
+            file: Union[str, bytes, BytesIO, Path]
     ) -> "MessageSegment":
         return MessageSegment(type="file", data={
             "file": file,
+            "filename": filename
         })
 
 
@@ -77,6 +79,8 @@ class Message(BaseMessage[MessageSegment]):
         if images := msg_body.Images:
             for image in images:
                 msg.append(MessageSegment(type="image", data=image.model_dump()))
+        elif file := msg_body.File:
+            msg.append(MessageSegment(type="file", data=file.model_dump()))
         elif voice := msg_body.Voice:
             msg.append(MessageSegment(type="voice", data=voice.model_dump()))
         return Message(msg) if msg != [] else Message("")

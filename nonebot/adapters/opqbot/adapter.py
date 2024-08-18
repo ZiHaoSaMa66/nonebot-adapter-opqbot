@@ -82,8 +82,9 @@ class Adapter(BaseAdapter):
             event_name = payload.get('CurrentPacket').get('EventName', None)
             event_model = EVENT_CLASSES.get(event_name, None)
             event = type_validate_python(event_model, payload)
-            if not event.CurrentPacket.EventData.MsgBody and event.get_type() == "message":  # message消息无MsgBody就跳过
-                return
+            if event.get_type() == "message":  # message消息无MsgBody就跳过
+                if not event.CurrentPacket.EventData.MsgBody:
+                    return
             return event
         except Exception as e:
             # 无法正常解析为具体 Event 时，给出日志提示
