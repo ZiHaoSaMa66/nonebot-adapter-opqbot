@@ -161,6 +161,52 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    async def get_clientkey(self) -> dict:
+        """
+        GetClientKey
+        :return:
+        """
+        request = self.build_request({}, cmd="GetClientKey")
+        res = await self.post(request)
+        return res
+
+    async def get_PSKey(self, domain: str = "qzone.qq.com") -> dict:
+        """
+        GetPSKey
+        :param domain: 文档默认给了qzone.qq.com
+        :return:
+        """
+        request = self.build_request({"Domain": domain}, cmd="GetPSKey")
+        res = await self.post(request)
+        return res
+
+    async def get_GTK(self) -> dict:
+        """
+        GetGTK
+        :return:
+        """
+        request = self.build_request({}, cmd="GetGTK")
+        res = await self.post(request)
+        return res
+
+    async def get_GTK(self) -> dict:
+        """
+        GetGTK
+        :return:
+        """
+        request = self.build_request({}, cmd="GetGTK")
+        res = await self.post(request)
+        return res
+
+    async def get_cookies(self) -> dict:
+        """
+        GetCookies
+        :return:
+        """
+        request = self.build_request({}, cmd="GetCookies")
+        res = await self.post(request)
+        return res
+
     async def get_group_member_list(self, group_id: int) -> List[MemberLists]:
         """
         获取群成员信息
@@ -209,6 +255,64 @@ class Bot(BaseBot):
             "GroupCode": group_id,
             "Uid": user_uid,
             "BanTime": duration
+        }
+        request = self.build_request(payload, cmd="SsoGroup.Op")
+        res = await self.post(request)
+        return res
+
+    async def set_group_whole_ban(
+            self,
+            group_id: int,
+            enable: bool
+    ):
+        """
+        群组全员禁言
+        :param group_id: 群号 (event.group_id)
+        :param enable: 开启或关闭
+        :return:
+        """
+        payload = {
+            "OpCode": 2202,
+            "SubCmd": 0,
+            "GroupCode": group_id,
+            "Type": 1 if enable else 0
+        }
+        request = self.build_request(payload, cmd="SsoGroup.Op")
+        res = await self.post(request)
+        return res
+
+    async def set_group_leave(
+            self,
+            group_id: int
+    ):
+        """
+        退出群聊
+        :param group_id: 群号 (event.group_id)
+        :return:
+        """
+        payload = {
+            "OpCode": 4247,
+            "GroupCode": group_id
+        }
+        request = self.build_request(payload, cmd="SsoGroup.Op")
+        res = await self.post(request)
+        return res
+
+    async def set_group_kick(
+            self,
+            group_id: int,
+            user_uid: str
+    ):
+        """
+        移除群组成员
+        :param group_id: 群号 (event.group_id)
+        :param user_uid: uid (event.Sender.user_uid)
+        :return:
+        """
+        payload = {
+            "OpCode": 2208,
+            "GroupCode": group_id,
+            "Uid": user_uid
         }
         request = self.build_request(payload, cmd="SsoGroup.Op")
         res = await self.post(request)
