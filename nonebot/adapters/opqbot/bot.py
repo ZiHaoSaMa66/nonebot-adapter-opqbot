@@ -189,15 +189,6 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
-    async def get_GTK(self) -> dict:
-        """
-        GetGTK
-        :return:
-        """
-        request = self.build_request({}, cmd="GetGTK")
-        res = await self.post(request)
-        return res
-
     async def get_cookies(self) -> dict:
         """
         GetCookies
