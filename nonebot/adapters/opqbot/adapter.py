@@ -68,7 +68,7 @@ class Adapter(BaseAdapter):
                 "OPQBot Adapter need a WebSocketClient Driver to work."
             )
         # 在 NoneBot 启动和关闭时进行相关操作
-        self.driver.on_startup(self.startup)
+        self.on_ready(self.startup)
         self.driver.on_shutdown(self.shutdown)
 
     @classmethod
