@@ -1,14 +1,34 @@
 import asyncio
 import base64
-import functools
 import re
+from functools import partial
 from io import BytesIO
 from pathlib import Path
 from typing import BinaryIO, List, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Type,
+    Generic,
+    TypeVar,
+    Callable,
+    Optional,
+    Awaitable,
+    overload,
+)
+from typing_extensions import ParamSpec, Concatenate
 from PIL import Image
 
 from enum import Enum
 
+if TYPE_CHECKING:
+    from .bot import Bot
+# from .bot import Bot
+
+B = TypeVar("B", bound="Bot")
+R = TypeVar("R")
+P = ParamSpec("P")
 _T_Data = Union[str, bytes, BytesIO, BinaryIO, Path, List[str]]
 
 _BASE64_REGEX = re.compile(
@@ -104,3 +124,30 @@ def get_image_size(data: Union[bytes, BytesIO, str, Path]) -> Tuple[int, int]:
         raise TypeError("参数类型有误")
     width, height = image.size
     return height, width
+
+
+class API(Generic[B, P, R]):
+    def __init__(self, func: Callable[Concatenate[B, P], Awaitable[R]]) -> None:
+        self.func = func
+
+    def __set_name__(self, owner: Type[B], name: str) -> None:
+        self.name = name
+
+    @overload
+    def __get__(self, obj: None, objtype: Type[B]) -> "API[B, P, R]": ...
+
+    @overload
+    def __get__(
+        self, obj: B, objtype: Optional[Type[B]]
+    ) -> Callable[P, Awaitable[R]]: ...
+
+    def __get__(
+        self, obj: Optional[B], objtype: Optional[Type[B]] = None
+    ) -> "API[B, P, R] | Callable[P, Awaitable[R]]":
+        if obj is None:
+            return self
+
+        return partial(obj.call_api, self.name)  # type: ignore
+
+    async def __call__(self, inst: B, *args: P.args, **kwds: P.kwargs) -> R:
+        return await self.func(inst, *args, **kwds)

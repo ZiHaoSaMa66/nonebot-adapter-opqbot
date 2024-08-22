@@ -25,7 +25,8 @@ import json
 from .bot import Bot
 from .event import Event, EVENT_CLASSES, EventType
 from .config import Config
-from .message import Message, MessageSegment
+from .utils import API
+# from .message import Message, MessageSegment
 
 
 class Adapter(BaseAdapter):
@@ -49,7 +50,7 @@ class Adapter(BaseAdapter):
     @override
     async def _call_api(self, bot: Bot, api: str, **data: Any) -> Any:
         log("DEBUG", f"Bot {bot.self_id} calling API <y>{api}</y>")
-        api_handler: Optional[Callable[..., Any]] = getattr(bot.__class__, api, None)
+        api_handler: Optional[API] = getattr(bot.__class__, api, None)
         if api_handler is None:
             raise "无API"
         return await api_handler(bot, **data)

@@ -1,26 +1,21 @@
+import base64
+import json
 from io import BytesIO
-from typing import Union, Any, TYPE_CHECKING, Optional, List, Annotated
-
-# import bot
-from typing_extensions import override
+from pathlib import Path
+from typing import Union, Any, TYPE_CHECKING, Optional, List
 
 from nonebot.adapters import Bot as BaseBot
-from nonebot.message import handle_event
 from nonebot.drivers import Request
+from nonebot.message import handle_event
+from typing_extensions import override
+
 from .event import Event, EventType, GroupMessageEvent, FriendMessageEvent
 from .message import Message, MessageSegment
-# from .log import log
-import json
-from pydantic import BaseModel
-import base64
-from pydantic import Field
-from pathlib import Path
 
 if TYPE_CHECKING:
     from .adapter import Adapter
 from .utils import FileType, _resolve_data_type, get_image_size
 from .models import (
-    BaseResponse,
     Response,
     UploadImageVoiceResponse,
     SendMsgResponse,
@@ -29,9 +24,9 @@ from .models import (
     GetGroupMemberListResponse,
     MemberLists
 )
-from nonebot.utils import logger_wrapper
 
 from .log import log
+from .utils import API
 
 
 class Bot(BaseBot):
@@ -45,6 +40,7 @@ class Bot(BaseBot):
     def __init__(self, adapter: "Adapter", self_id: str, **kwargs: Any):
         super().__init__(adapter, self_id)
         self.adapter = adapter
+
         self.http_url: str = self.adapter.http_url
         # 一些有关 Bot 的信息也可以在此定义和存储
 
@@ -80,6 +76,7 @@ class Bot(BaseBot):
         params["qq"] = self.self_id
 
         ret = None
+
         log("INFO", f"API请求数据: payload:[{payload}]")
         try:
             resp = await self.adapter.request(Request(
@@ -129,8 +126,10 @@ class Bot(BaseBot):
     ):
         return await self.baseRequest(
             "GET", funcname=funcname, path=path, params=params, timeout=timeout
+
         )
 
+    @API
     async def send_poke(self, group_id: int, user_id: int):
         """
         戳一戳
@@ -142,6 +141,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def send_like(self, user_uid: str):
         """
         好友点赞
@@ -152,6 +152,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def get_status(self) -> dict:
         """
         获取OPQ框架信息 (机器人在线列表等等)
@@ -161,6 +162,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def get_clientkey(self) -> dict:
         """
         GetClientKey
@@ -170,6 +172,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def get_PSKey(self, domain: str = "qzone.qq.com") -> dict:
         """
         GetPSKey
@@ -180,6 +183,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def get_GTK(self) -> dict:
         """
         GetGTK
@@ -189,6 +193,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def get_cookies(self) -> dict:
         """
         GetCookies
@@ -198,6 +203,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def get_group_member_list(self, group_id: int) -> List[MemberLists]:
         """
         获取群成员信息
@@ -219,6 +225,7 @@ class Bot(BaseBot):
 
         return memberlist
 
+    @API
     async def get_group_list(self) -> GetGroupListResponse:
         """
         获取群列表
@@ -228,6 +235,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return GetGroupListResponse(**res)
 
+    @API
     async def set_group_ban(
             self,
             group_id: int,
@@ -251,6 +259,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def set_group_whole_ban(
             self,
             group_id: int,
@@ -272,6 +281,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def set_group_leave(
             self,
             group_id: int
@@ -289,6 +299,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def set_group_kick(
             self,
             group_id: int,
@@ -309,9 +320,10 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def send_forward_msg(
             self,
-            event: Event,
+            event: Union[GroupMessageEvent, FriendMessageEvent],
             messages: list[Union[Message, MessageSegment, str]]
     ):
         """
@@ -332,6 +344,7 @@ class Bot(BaseBot):
                 messages=messages
             )
 
+    @API
     async def send_group_forward_msg(
             self,
             group_id: int,
@@ -343,9 +356,10 @@ class Bot(BaseBot):
         :param group_id: 群号(event.group_id)
         :return: api返回的数据
         """
-        json_msg = await self.build_forward_msg(messages)
-        return await self.send_group_json_msg(group_id, json_msg)
+        json_msg = await self.build_forward_msg(messages=messages)
+        return await self.send_group_json_msg(group_id=group_id, json_content=json_msg)
 
+    @API
     async def send_private_forward_msg(
             self,
             user_id: int,
@@ -359,9 +373,10 @@ class Bot(BaseBot):
         :param group_id: 群号(event.group_id)
         :return: api返回的数据
         """
-        json_msg = await self.build_forward_msg(messages)
-        return await self.send_private_json_msg(user_id, json_msg, group_id)
+        json_msg = await self.build_forward_msg(messages=messages)
+        return await self.send_private_json_msg(user_id=user_id, json_content=json_msg, group_id=group_id)
 
+    @API
     async def send_group_json_msg(
             self,
             group_id: int,
@@ -383,6 +398,7 @@ class Bot(BaseBot):
         request = self.build_request(payload)
         return await self.post(request)
 
+    @API
     async def send_private_json_msg(
             self,
             user_id: int,
@@ -407,6 +423,7 @@ class Bot(BaseBot):
         request = self.build_request(payload)
         return await self.post(request)
 
+    @API
     async def build_forward_msg(
             self,
             messages: list[Union[Message, MessageSegment, str]],
@@ -488,6 +505,7 @@ class Bot(BaseBot):
         res = await self.adapter.request(req)
         return res.content
 
+    @API
     async def get_group_file_url(
             self,
             group_id: int,
@@ -510,6 +528,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
+    @API
     async def upload_group_file(
             self,
             group_id: int,
@@ -544,6 +563,7 @@ class Bot(BaseBot):
         res = await self.post(request, path="/v1/upload", funcname="", timeout=120)
         return res
 
+    @API
     async def upload_image_voice(
             self,
             command_id: int,
@@ -574,6 +594,7 @@ class Bot(BaseBot):
             uploadresponse.Height, uploadresponse.Width = height, width
         return uploadresponse
 
+    @API
     async def send_group_msg(
             self,
             group_id: int,
@@ -593,6 +614,7 @@ class Bot(BaseBot):
         request = self.build_request(payload)
         return await self.post(request)
 
+    @API
     async def send_private_msg(
             self,
             user_id: int,
@@ -616,6 +638,7 @@ class Bot(BaseBot):
         request = self.build_request(payload)
         return await self.post(request)
 
+    @API
     async def revoke_group_msg(
             self,
             group_id: int,
@@ -665,8 +688,10 @@ class Bot(BaseBot):
                         "Width": segment.data.get("Width", None)
                     })
                 else:  # 手动发送的图
-                    img = await self.upload_image_voice(2 if event_type == EventType.GROUP_NEW_MSG else 1,
-                                                        file=segment.data.get("file"))
+                    img = await self.upload_image_voice(
+                        command_id=2 if event_type == EventType.GROUP_NEW_MSG else 1,
+                        file=segment.data.get("file")
+                    )
                     images.append({
                         "FileId": img.FileId,
                         "FileMd5": img.FileMd5,
@@ -683,7 +708,7 @@ class Bot(BaseBot):
     @override
     async def send(
             self,
-            event: Event,
+            event: Union[GroupMessageEvent, FriendMessageEvent],
             message: Union[str, Message, MessageSegment],
             **kwargs: Any,
     ):
@@ -707,9 +732,10 @@ class Bot(BaseBot):
         else:
             raise ValueError(f"Unknown supped event: {event.__type__}")
 
+    @API
     async def reply(
             self,
-            event: Event,
+            event: Union[GroupMessageEvent, FriendMessageEvent],
             message: Union[str, Message, MessageSegment],
     ) -> SendMsgResponse:
         """
