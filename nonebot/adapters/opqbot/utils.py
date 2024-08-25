@@ -138,11 +138,11 @@ class API(Generic[B, P, R]):
 
     @overload
     def __get__(
-        self, obj: B, objtype: Optional[Type[B]]
+            self, obj: B, objtype: Optional[Type[B]]
     ) -> Callable[P, Awaitable[R]]: ...
 
     def __get__(
-        self, obj: Optional[B], objtype: Optional[Type[B]] = None
+            self, obj: Optional[B], objtype: Optional[Type[B]] = None
     ) -> "API[B, P, R] | Callable[P, Awaitable[R]]":
         if obj is None:
             return self

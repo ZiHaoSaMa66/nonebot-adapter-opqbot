@@ -17,7 +17,7 @@ from nonebot.drivers import (
     HTTPServerSetup,
     WebSocketServerSetup,
     WebSocketClientMixin,
-    HTTPClientMixin
+    HTTPClientMixin,
 )
 
 from nonebot.adapters import Adapter as BaseAdapter
@@ -26,6 +26,8 @@ from .bot import Bot
 from .event import Event, EVENT_CLASSES, EventType
 from .config import Config
 from .utils import API
+
+
 # from .message import Message, MessageSegment
 
 
@@ -81,7 +83,7 @@ class Adapter(BaseAdapter):
 
         # 做一层异常处理，以应对平台事件数据的变更
         try:
-            event_name = payload.get('CurrentPacket').get('EventName', None)
+            event_name = payload.get("CurrentPacket").get("EventName", None)
             event_model = EVENT_CLASSES.get(event_name, None)
             event = type_validate_python(event_model, payload)
             if event.get_type() == "message":  # message消息无MsgBody就跳过
@@ -121,10 +123,9 @@ class Adapter(BaseAdapter):
                             if event := self.payload_to_event(json.loads(payload)):
                                 if event.CurrentQQ not in self.bot_ids:
                                     return
-
-                                    # bots[event.CurrentQQ] = bot  # 保存所有bot对象
-                                # bot
-                                task = self.bots[str(event.CurrentQQ)].handle_event(event)
+                                task = self.bots[str(event.CurrentQQ)].handle_event(
+                                    event
+                                )
                                 asyncio.create_task(task)
                     except WebSocketClosed as e:
                         log(

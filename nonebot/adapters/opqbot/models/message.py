@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Optional, Any, List
 from pydantic import BaseModel, model_validator
 
+
 class C2CTempMessageHead(BaseModel):
     C2CType: int
     Sig: str
@@ -67,6 +68,21 @@ class File(BaseModel):
     PathId: str
 
 
+class RedBag(BaseModel):
+    Wishing: str
+    Des: str
+    RedType: int
+    Listid: str
+    Authkey: str
+    Channel: int
+    StingIndex: str
+    TransferMsg: str
+    Token_17_2: str
+    Token_17_3: str
+    FromUin: int
+    FromType: int
+
+
 class MsgBody(BaseModel):
     SubMsgType: int  # description="0为单一或复合类型消息(文字 At 图片 自由组合), 12 Xml消息 19 Video消息 51 JSON卡片消息",
 
@@ -76,6 +92,7 @@ class MsgBody(BaseModel):
     Video: Optional[Video]
     Voice: Optional[Voice]
     File: Optional[File]
+    RedBag: Optional[RedBag]
 
 
 class EventData(BaseModel):
@@ -116,5 +133,3 @@ class UploadResponse(BaseModel):
 class SendMsgResponse(BaseModel):
     MsgTime: int
     MsgSeq: int
-
-

@@ -1,4 +1,4 @@
-from .message import MsgBody, CurrentPacket
+from .message import MsgBody, CurrentPacket, RedBag
 from .response import (
     Response,
     UploadImageVoiceResponse,
@@ -6,6 +6,8 @@ from .response import (
     SendMsgResponse,
     UploadForwardMsgResponse,
     GetGroupListResponse,
-GetGroupMemberListResponse,
-MemberLists
+    GetGroupMemberListResponse,
+    GetFriendListResponse,
+    MemberInfo,
+    FriendInfo,
 )

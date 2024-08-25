@@ -70,6 +70,7 @@ class Event(BaseEvent):
 
 class MessageEvent(Event):
     """Event"""
+
     __type__: EventType
     CurrentQQ: int  # "Bot QQ号")
     CurrentPacket: CurrentPacket
@@ -115,24 +116,26 @@ class MessageEvent(Event):
     def is_tome(self) -> bool:
         return False
 
-    def get_from_uin(self):
-        return self.get_msg_head().FromUin
+    # def get_from_uin(self):
+    #     return self.get_msg_head().FromUin
+    #
+    # def get_sender_uin(self):
+    #     return self.get_msg_head().SenderUin
+    #
+    # def get_content(self):
+    #     if self.get_msg_body():
+    #         return self.get_msg_body().Content
+    #     return None
+    #
+    # def get_from_type(self):
+    #     return self.get_msg_head().FromType
 
-    def get_sender_uin(self):
-        return self.get_msg_head().SenderUin
-
-    def get_content(self):
-        if self.get_msg_body():
-            return self.get_msg_body().Content
-        return None
-
-    def get_from_type(self):
-        return self.get_msg_head().FromType
-
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def transform_data(cls, values: dict):
         # 展平嵌套数据
-        def flatten_and_update(target: Dict[str, Any], source: Dict[str, Any], new_key: str, keys: list):
+        def flatten_and_update(
+                target: Dict[str, Any], source: Dict[str, Any], new_key: str, keys: list
+        ):
             """将嵌套字典展平并更新到目标字典，使用不同的字段名"""
             nested = source
             for key in keys:
@@ -141,29 +144,34 @@ class MessageEvent(Event):
             target[new_key] = nested
 
         values["raw_message"] = values.copy()
-        event_data = values.get('CurrentPacket', {}).get('EventData', {})
-        msg_head = event_data.get('MsgHead', {})
-        msg_body = event_data.get('MsgBody', {}) or {}  # 防止MsgBody:null
+        event_data = values.get("CurrentPacket", {}).get("EventData", {})
+        msg_head = event_data.get("MsgHead", {})
+        msg_body = event_data.get("MsgBody", {}) or {}  # 防止MsgBody:null
         transform_dict = {
                              "time": ["MsgTime"],
                              "user_id": ["SenderUin"],
                              "group_name": ["GroupInfo", "GroupName"],
                              "message_random": ["MsgRandom"],
-                         } | ({"group_id": ["GroupInfo", "GroupCode"]} if msg_head.get("GroupInfo")
-                              else {"group_id": ['C2CTempMessageHead', 'GroupCode']})  # 需要提取的字段
+                         } | (
+                             {"group_id": ["GroupInfo", "GroupCode"]}
+                             if msg_head.get("GroupInfo")
+                             else {"group_id": ["C2CTempMessageHead", "GroupCode"]}
+                         )  # 需要提取的字段
         for k, v in transform_dict.items():
             flatten_and_update(values, msg_head, k, v)
             # flatten_and_update(values, event_data, "raw_message", ["MsgBody"])
-        values["message_type"] = {1: "friend", 2: "group", 3: "private"}.get(msg_head.get("FromType"), "unknown")
+        values["message_type"] = {1: "friend", 2: "group", 3: "private"}.get(
+            msg_head.get("FromType"), "unknown"
+        )
         values["message_id"] = MessageId(
-            seq=msg_head.get('MsgSeq'),
-            time=msg_head.get('MsgTime'),
-            uid=msg_head.get('MsgUid')
+            seq=msg_head.get("MsgSeq"),
+            time=msg_head.get("MsgTime"),
+            uid=msg_head.get("MsgUid"),
         )
         values["sender"] = Sender(
-            user_id=msg_head.get('SenderUin'),
-            nickname=msg_head.get('SenderNick'),
-            user_uid=msg_head.get('SenderUid'),
+            user_id=msg_head.get("SenderUin"),
+            nickname=msg_head.get("SenderNick"),
+            user_uid=msg_head.get("SenderUid"),
         )  # 发送消息的人
         if body := msg_body:
             values["message"] = Message.build_message(MsgBody(**body))
@@ -195,6 +203,7 @@ def register_event_class(event_class: Type[E]) -> Type[E]:
 @register_event_class
 class GroupMessageEvent(MessageEvent):
     """群消息事件"""
+
     __type__ = EventType.GROUP_NEW_MSG
     at_users: Optional[List[Sender]]
 
@@ -214,19 +223,21 @@ class GroupMessageEvent(MessageEvent):
             return True
         return False
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     def transform_group_data(cls, values: dict):
         # 展平嵌套数据
-        event_data = values.get('CurrentPacket', {}).get('EventData', {})
-        msg_body = event_data.get('MsgBody', {}) or {}  # 防止MsgBody:null
+        event_data = values.get("CurrentPacket", {}).get("EventData", {})
+        msg_body = event_data.get("MsgBody", {}) or {}  # 防止MsgBody:null
         at_uin_lists = msg_body.get("AtUinLists") or []
         at_users = []
         for at_user in at_uin_lists:
-            at_users.append(Sender(
-                user_id=at_user.get('Uin'),
-                nickname=at_user.get('Nick'),
-                user_uid=at_user.get('Uid'),
-            ))
+            at_users.append(
+                Sender(
+                    user_id=at_user.get("Uin"),
+                    nickname=at_user.get("Nick"),
+                    user_uid=at_user.get("Uid"),
+                )
+            )
 
         values["at_users"] = at_users
         return values
@@ -235,6 +246,7 @@ class GroupMessageEvent(MessageEvent):
 @register_event_class
 class FriendMessageEvent(MessageEvent):
     """好友消息事件"""
+
     __type__ = EventType.FRIEND_NEW_MSG
 
     @override
@@ -244,6 +256,7 @@ class FriendMessageEvent(MessageEvent):
 
 class NoticeEvent(Event):
     """通知类"""
+
     __type__ = EventType
     CurrentQQ: int  # "Bot QQ号")
 
@@ -279,6 +292,7 @@ class NoticeEvent(Event):
 @register_event_class
 class GroupMessageRevokeEvent(NoticeEvent):
     """群撤回事件"""
+
     __type__ = EventType.GROUP_MSG_REVOKE
 
     @override
@@ -286,10 +300,10 @@ class GroupMessageRevokeEvent(NoticeEvent):
         return "notice"
 
 
-
 @register_event_class
 class BotLogin(NoticeEvent):
     """Bot登录事件"""
+
     __type__ = EventType.LOGIN_SUCCESS
     CurrentQQ: int  # "Bot QQ号")
 

@@ -49,7 +49,7 @@ class GetGroupListResponse(BaseModel):
     GroupLists: List[GroupData]
 
 
-class MemberLists(BaseModel):
+class MemberInfo(BaseModel):
     CreditLevel: int
     GroupCard: Optional[str]
     JoinTime: datetime
@@ -63,4 +63,31 @@ class MemberLists(BaseModel):
 
 class GetGroupMemberListResponse(BaseModel):
     LastBuffer: str
-    MemberLists: List[MemberLists]
+    MemberLists: List[MemberInfo]
+
+
+class FriendInfo(BaseModel):
+    Age: int
+    City: str
+    Country: str
+    Head: str
+    Mark: str
+    Nick: str
+    Province: str
+    Sex: int
+    Signature: str
+    TagId: int
+    Uid: str
+    Uin: int
+
+
+class FriendTagInfo(BaseModel):
+    IndexId: int
+    TagId: int
+    TagName: str
+
+
+class GetFriendListResponse(BaseModel):
+    LastUin: int
+    FriendLists: List[FriendInfo]
+    TagLists: List[FriendTagInfo]
