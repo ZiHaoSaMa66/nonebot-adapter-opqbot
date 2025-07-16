@@ -17,7 +17,7 @@ from nonebot.drivers import (
     HTTPServerSetup,
     WebSocketServerSetup,
     WebSocketClientMixin,
-    HTTPClientMixin,
+    HTTPClientMixin
 )
 
 from nonebot.adapters import Adapter as BaseAdapter
@@ -25,10 +25,7 @@ import json
 from .bot import Bot
 from .event import Event, EVENT_CLASSES, EventType
 from .config import Config
-from .utils import API
-
-
-# from .message import Message, MessageSegment
+from .message import Message, MessageSegment
 
 
 class Adapter(BaseAdapter):
@@ -52,7 +49,7 @@ class Adapter(BaseAdapter):
     @override
     async def _call_api(self, bot: Bot, api: str, **data: Any) -> Any:
         log("DEBUG", f"Bot {bot.self_id} calling API <y>{api}</y>")
-        api_handler: Optional[API] = getattr(bot.__class__, api, None)
+        api_handler: Optional[Callable[..., Any]] = getattr(bot.__class__, api, None)
         if api_handler is None:
             raise "无API"
         return await api_handler(bot, **data)
@@ -71,7 +68,7 @@ class Adapter(BaseAdapter):
                 "OPQBot Adapter need a WebSocketClient Driver to work."
             )
         # 在 NoneBot 启动和关闭时进行相关操作
-        self.on_ready(self.startup)
+        self.driver.on_startup(self.startup)
         self.driver.on_shutdown(self.shutdown)
 
     @classmethod
@@ -83,8 +80,10 @@ class Adapter(BaseAdapter):
 
         # 做一层异常处理，以应对平台事件数据的变更
         try:
-            event_name = payload.get("CurrentPacket").get("EventName", None)
+            event_name = payload.get('CurrentPacket').get('EventName', None)
             event_model = EVENT_CLASSES.get(event_name, None)
+            if event_model is None:
+                return
             event = type_validate_python(event_model, payload)
             if event.get_type() == "message":  # message消息无MsgBody就跳过
                 if not event.CurrentPacket.EventData.MsgBody:
@@ -123,9 +122,10 @@ class Adapter(BaseAdapter):
                             if event := self.payload_to_event(json.loads(payload)):
                                 if event.CurrentQQ not in self.bot_ids:
                                     return
-                                task = self.bots[str(event.CurrentQQ)].handle_event(
-                                    event
-                                )
+
+                                    # bots[event.CurrentQQ] = bot  # 保存所有bot对象
+                                # bot
+                                task = self.bots[str(event.CurrentQQ)].handle_event(event)
                                 asyncio.create_task(task)
                     except WebSocketClosed as e:
                         log(
