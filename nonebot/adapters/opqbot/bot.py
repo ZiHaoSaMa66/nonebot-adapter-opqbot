@@ -1,43 +1,45 @@
-import base64
-import json
 from io import BytesIO
-from pathlib import Path
-from typing import Union, Any, TYPE_CHECKING, Optional, List
+from typing import Union, Any, TYPE_CHECKING, Optional, List, Annotated
 
-from nonebot.adapters import Bot as BaseBot
-from nonebot.drivers import Request
-from nonebot.message import handle_event
+# import bot
 from typing_extensions import override
 
-from .event import Event, EventType, GroupMessageEvent, FriendMessageEvent
+from nonebot.adapters import Bot as BaseBot
+from nonebot.message import handle_event
+from nonebot.drivers import Request
+from .event import Event, EventType, GroupMessageEvent, FriendMessageEvent,MessageEvent
 from .message import Message, MessageSegment
-from nonebot.compat import type_validate_python, type_validate_json
+# from .log import log
+import json
+from pydantic import BaseModel
+import base64
+from pydantic import Field
+from pathlib import Path
 
 if TYPE_CHECKING:
     from .adapter import Adapter
 from .utils import FileType, _resolve_data_type, get_image_size
 from .models import (
+    BaseResponse,
     Response,
     UploadImageVoiceResponse,
     SendMsgResponse,
     UploadForwardMsgResponse,
     GetGroupListResponse,
     GetGroupMemberListResponse,
-    GetFriendListResponse,
-    MemberInfo,
-    FriendInfo,
-    RedBag,
+    MemberLists
 )
+from nonebot.utils import logger_wrapper
 
 from .log import log
-from .utils import API
+from nonebot.log import logger
+
 
 
 class Bot(BaseBot):
     """
     OPQ 协议 Bot 适配。
     """
-
     adapter: "Adapter"
 
     @override
@@ -45,27 +47,19 @@ class Bot(BaseBot):
     def __init__(self, adapter: "Adapter", self_id: str, **kwargs: Any):
         super().__init__(adapter, self_id)
         self.adapter = adapter
-
         self.http_url: str = self.adapter.http_url
         # 一些有关 Bot 的信息也可以在此定义和存储
 
-    async def handle_event(self, event: Union[Event, GroupMessageEvent]) -> None:
+    async def handle_event(self, event: Union[Event, MessageEvent]) -> None:
         """处理收到的事件。"""
-        # if isinstance(event, MessageEvent):
-        #     event.message.reduce()
-        #     await _check_reply(self, event)
-        #     _check_at_me(self, event)
-        #     _check_nickname(self, event)
-        if event.__type__ == EventType.GROUP_NEW_MSG:
-            if event.is_at_msg():
-                for at_user in event.at_users:
-                    for msg in event.message:
-                        if msg.type == "text":
-                            msg.data["text"] = msg.data["text"].replace(
-                                f"@{at_user.nickname}", ""
-                            )  # 移除 "@昵称"
-                            log("INFO", f"移除@昵称 [@{at_user.nickname}]")
+        if isinstance(event, MessageEvent):
+            sender_id = str(event.user_id)
+            self_id = str(self.self_id)
 
+            if sender_id == self_id:
+                # 🐾 是 Bot 自己发的消息，直接忽略~
+                logger.info(f"忽略了自己发的消息")
+                return
         await handle_event(self, event)
 
     async def baseRequest(
@@ -82,18 +76,15 @@ class Bot(BaseBot):
         params["qq"] = self.self_id
 
         ret = None
-
         log("INFO", f"API请求数据: payload:[{payload}]")
         try:
-            resp = await self.adapter.request(
-                Request(
-                    method,
-                    url=self.http_url + path,
-                    params=params,
-                    json=payload,
-                    timeout=timeout,
-                )
-            )
+            resp = await self.adapter.request(Request(
+                method,
+                url=self.http_url + path,
+                params=params,
+                json=payload,
+                timeout=timeout,
+            ))
             ret = json.loads(resp.content)
             resp_model = Response(**ret)
             if resp_model.CgiBaseResponse.Ret == 0:
@@ -136,85 +127,6 @@ class Bot(BaseBot):
             "GET", funcname=funcname, path=path, params=params, timeout=timeout
         )
 
-    @API
-    async def set_group_add_request(
-            self,
-            group_id: int,
-            msg_seq: int,
-            msg_type: int,
-            approve: Union[bool, None] = None,
-    ):
-        """
-        处理群系统消息
-        :param group_id: 来自群系统消息事件推送
-        :param msg_seq: 来自群系统消息事件推送
-        :param msg_type: 来自群系统消息事件推送
-        :param approve:true同意; false拒绝; None忽略
-        :return:
-        """
-        if approve == None:
-            opcode = 3
-        else:
-            if approve:
-                opcode = 1
-            else:
-                opcode = 2
-        request = self.build_request(
-            {
-                "MsgSeq": msg_seq,
-                "MsgType": msg_type,
-                "GroupCode": group_id,
-                "OpCode": opcode,
-            },
-            cmd="SystemMsgAction.Group",
-        )
-        res = await self.post(request)
-        return res
-
-    @API
-    async def set_friend_add_request(self, req_uid: str, approve: bool):
-        """
-        处理好友系统消息
-
-        :param req_uid:群号
-        :param approve:uid
-        :return:
-        """
-        request = self.build_request(
-            {"ReqUid": req_uid, "OpCode": 3 if approve else 5},
-            cmd="SystemMsgAction.Friend",
-        )
-        res = await self.post(request)
-        return res
-
-    @API
-    async def set_group_card(self, group_id: int, user_uid: str, card: str):
-        """
-        修改群成员昵称
-        :param group_id:群号
-        :param user_uid:uid
-        :param card:要修改的昵称
-        :return:
-        """
-        request = self.build_request(
-            {"OpCode": 2300, "GroupCode": group_id, "Uid": user_uid, "Nick": card},
-            cmd="SsoGroup.Op",
-        )
-        res = await self.post(request)
-        return res
-
-    @API
-    async def open_redbag(self, redbag: RedBag):
-        """
-        打开群组红包
-        :param redbag: RedBag
-        :return:
-        """
-        request = self.build_request(redbag.model_dump(), cmd="OpenREDBAG")
-        res = await self.post(request)
-        return res
-
-    @API
     async def send_poke(self, group_id: int, user_id: int):
         """
         戳一戳
@@ -222,13 +134,10 @@ class Bot(BaseBot):
         :param user_id: qq号(event.user_id)
         :return:
         """
-        request = self.build_request(
-            {"GroupCode": group_id, "Uin": user_id}, cmd="SsoGroup.Op.Pat"
-        )
+        request = self.build_request({"GroupCode": group_id, "Uin": user_id}, cmd="SsoGroup.Op.Pat")
         res = await self.post(request)
         return res
 
-    @API
     async def send_like(self, user_uid: str):
         """
         好友点赞
@@ -239,7 +148,6 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
-    @API
     async def get_status(self) -> dict:
         """
         获取OPQ框架信息 (机器人在线列表等等)
@@ -249,66 +157,7 @@ class Bot(BaseBot):
         res = await self.post(request)
         return res
 
-    @API
-    async def get_clientkey(self) -> dict:
-        """
-        GetClientKey
-        :return:
-        """
-        request = self.build_request({}, cmd="GetClientKey")
-        res = await self.post(request)
-        return res
-
-    @API
-    async def get_PSKey(self, domain: str = "qzone.qq.com") -> dict:
-        """
-        GetPSKey
-        :param domain: 文档默认给了qzone.qq.com
-        :return:
-        """
-        request = self.build_request({"Domain": domain}, cmd="GetPSKey")
-        res = await self.post(request)
-        return res
-
-    @API
-    async def get_GTK(self) -> dict:
-        """
-        GetGTK
-        :return:
-        """
-        request = self.build_request({}, cmd="GetGTK")
-        res = await self.post(request)
-        return res
-
-    @API
-    async def get_cookies(self) -> dict:
-        """
-        GetCookies
-        :return:
-        """
-        request = self.build_request({}, cmd="GetCookies")
-        res = await self.post(request)
-        return res
-
-    @API
-    async def get_friend_list(self) -> List[FriendInfo]:
-        """
-        获取好友列表
-        :return: List[FriendInfo]
-        """
-        lastUin = "null"
-        friendInfo = []
-        while lastUin:
-            payload = {"LastUin": 0 if lastUin == "null" else lastUin}
-            request = self.build_request(payload, cmd="GetFriendLists")
-            res = await self.post(request)
-            data = type_validate_python(GetFriendListResponse, res)
-            lastUin = data.LastUin
-            friendInfo += data.FriendLists
-        return friendInfo
-
-    @API
-    async def get_group_member_list(self, group_id: int) -> List[MemberInfo]:
+    async def get_group_member_list(self, group_id: int) -> List[MemberLists]:
         """
         获取群成员信息
         :param group_id: 群号(event.group_id)
@@ -319,7 +168,7 @@ class Bot(BaseBot):
         while lastbuffer:
             payload = {
                 "GroupCode": group_id,
-                "LastBuffer": lastbuffer if lastbuffer != "null" else None,
+                "LastBuffer": lastbuffer if lastbuffer != "null" else None
             }
             request = self.build_request(payload, cmd="GetGroupMemberLists")
             res = await self.post(request)
@@ -329,7 +178,6 @@ class Bot(BaseBot):
 
         return memberlist
 
-    @API
     async def get_group_list(self) -> GetGroupListResponse:
         """
         获取群列表
@@ -339,8 +187,12 @@ class Bot(BaseBot):
         res = await self.post(request)
         return GetGroupListResponse(**res)
 
-    @API
-    async def set_group_ban(self, group_id: int, user_uid: str, duration: int):
+    async def set_group_ban(
+            self,
+            group_id: int,
+            user_uid: str,
+            duration: int
+    ):
         """
         禁言群组成员
         :param group_id: 群号 (event.group_id)
@@ -352,60 +204,16 @@ class Bot(BaseBot):
             "OpCode": 4691,
             "GroupCode": group_id,
             "Uid": user_uid,
-            "BanTime": duration,
+            "BanTime": duration
         }
         request = self.build_request(payload, cmd="SsoGroup.Op")
         res = await self.post(request)
         return res
 
-    @API
-    async def set_group_whole_ban(self, group_id: int, enable: bool):
-        """
-        群组全员禁言
-        :param group_id: 群号 (event.group_id)
-        :param enable: 开启或关闭
-        :return:
-        """
-        payload = {
-            "OpCode": 2202,
-            "SubCmd": 0,
-            "GroupCode": group_id,
-            "Type": 1 if enable else 0,
-        }
-        request = self.build_request(payload, cmd="SsoGroup.Op")
-        res = await self.post(request)
-        return res
-
-    @API
-    async def set_group_leave(self, group_id: int):
-        """
-        退出群聊
-        :param group_id: 群号 (event.group_id)
-        :return:
-        """
-        payload = {"OpCode": 4247, "GroupCode": group_id}
-        request = self.build_request(payload, cmd="SsoGroup.Op")
-        res = await self.post(request)
-        return res
-
-    @API
-    async def set_group_kick(self, group_id: int, user_uid: str):
-        """
-        移除群组成员
-        :param group_id: 群号 (event.group_id)
-        :param user_uid: uid (event.Sender.user_uid)
-        :return:
-        """
-        payload = {"OpCode": 2208, "GroupCode": group_id, "Uid": user_uid}
-        request = self.build_request(payload, cmd="SsoGroup.Op")
-        res = await self.post(request)
-        return res
-
-    @API
     async def send_forward_msg(
             self,
-            event: Union[GroupMessageEvent, FriendMessageEvent],
-            messages: list[Union[Message, MessageSegment, str]],
+            event: Event,
+            messages: list[Union[Message, MessageSegment, str]]
     ):
         """
         发送合并转发消息,每条消息只支持一张图,多的图会自动拆分
@@ -415,16 +223,20 @@ class Bot(BaseBot):
         """
         if event.__type__ == EventType.GROUP_NEW_MSG:  # 群聊
             return await self.send_group_forward_msg(
-                group_id=event.group_id, messages=messages
+                group_id=event.group_id,
+                messages=messages
             )
         elif event.__type__ == EventType.FRIEND_NEW_MSG:  # 好友和私聊
             return await self.send_private_forward_msg(
-                user_id=event.user_id, group_id=event.group_id, messages=messages
+                user_id=event.user_id,
+                group_id=event.group_id,
+                messages=messages
             )
 
-    @API
     async def send_group_forward_msg(
-            self, group_id: int, messages: list[Union[Message, MessageSegment, str]]
+            self,
+            group_id: int,
+            messages: list[Union[Message, MessageSegment, str]]
     ) -> SendMsgResponse:
         """
         发送群组的合并转发消息,每条消息只支持一张图,多的图会自动拆分
@@ -432,15 +244,14 @@ class Bot(BaseBot):
         :param group_id: 群号(event.group_id)
         :return: api返回的数据
         """
-        json_msg = await self.build_forward_msg(messages=messages)
-        return await self.send_group_json_msg(group_id=group_id, json_content=json_msg)
+        json_msg = await self.build_forward_msg(messages)
+        return await self.send_group_json_msg(group_id, json_msg)
 
-    @API
     async def send_private_forward_msg(
             self,
             user_id: int,
             messages: list[Union[Message, MessageSegment, str]],
-            group_id: Optional[int] = None,
+            group_id: Optional[int] = None
     ) -> SendMsgResponse:
         """
         发送好友或临时会话的合并转发消息,每条消息只支持一张图,多的图会自动拆分
@@ -449,14 +260,13 @@ class Bot(BaseBot):
         :param group_id: 群号(event.group_id)
         :return: api返回的数据
         """
-        json_msg = await self.build_forward_msg(messages=messages)
-        return await self.send_private_json_msg(
-            user_id=user_id, json_content=json_msg, group_id=group_id
-        )
+        json_msg = await self.build_forward_msg(messages)
+        return await self.send_private_json_msg(user_id, json_msg, group_id)
 
-    @API
     async def send_group_json_msg(
-            self, group_id: int, json_content: str
+            self,
+            group_id: int,
+            json_content: str
     ) -> SendMsgResponse:
         """
         发送群组的json消息
@@ -468,15 +278,17 @@ class Bot(BaseBot):
             "ToUin": group_id,
             "ToType": 2,
             "SubMsgType": 51,
-            "Content": json_content,
+            "Content": json_content
         }
 
         request = self.build_request(payload)
         return await self.post(request)
 
-    @API
     async def send_private_json_msg(
-            self, user_id: int, json_content: str, group_id: Optional[int] = None
+            self,
+            user_id: int,
+            json_content: str,
+            group_id: Optional[int] = None
     ) -> SendMsgResponse:
         """
         发送好友或临时会话的json消息
@@ -489,14 +301,13 @@ class Bot(BaseBot):
             "ToUin": user_id,
             "ToType": 3 if group_id else 1,
             "SubMsgType": 51,
-            "Content": json_content,
+            "Content": json_content
         }
         if group_id:
             payload["GroupCode"] = group_id
         request = self.build_request(payload)
         return await self.post(request)
 
-    @API
     async def build_forward_msg(
             self,
             messages: list[Union[Message, MessageSegment, str]],
@@ -506,38 +317,33 @@ class Bot(BaseBot):
         :param messages: message对象(只支持text和image)
         :return: 生成好的json模板
         """
-        json_template = {
-            "app": "com.tencent.multimsg",
-            "config": {
-                "autosize": 1,
-                "forward": 1,
-                "round": 1,
-                "type": "normal",
-                "width": 300,
-            },
-            "desc": "[聊天记录]",
-            "meta": {
-                "detail": {
-                    "news": [{"text": "概要1"}, {"text": "概要2"}],
-                    "resid": "7G6x5GJk07ze2AAjirAywSEYLRqVRj1sU0Pxv9mfmhe/YYqFV2kreIxtoqH+flEV",
-                    "source": "QQ用户的聊天记录",
-                    "summary": "查看4条转发消息",
-                    "uniseq": "dcdd7729-7482-4e1a-acd8-1777a314af0f",
-                }
-            },
-            "prompt": "[聊天记录]",
-            "ver": "0.0.0.5",
-            "view": "contact",
-        }
+        json_template = {"app": "com.tencent.multimsg",
+                         "config": {"autosize": 1, "forward": 1, "round": 1, "type": "normal", "width": 300},
+                         "desc": "[聊天记录]",
+                         "meta": {
+                             "detail":
+                                 {
+                                     "news": [
+                                         {"text": "概要1"}, {"text": "概要2"}
+                                     ],
+                                     "resid": "7G6x5GJk07ze2AAjirAywSEYLRqVRj1sU0Pxv9mfmhe/YYqFV2kreIxtoqH+flEV",
+                                     "source": "QQ用户的聊天记录",
+                                     "summary": "查看4条转发消息",
+                                     "uniseq": "dcdd7729-7482-4e1a-acd8-1777a314af0f"
+                                 }
+                         },
+                         "prompt": "[聊天记录]", "ver": "0.0.0.5",
+                         "view": "contact"}
         msg_bodys = []
         news = []
         for message in messages:
-            data = await self._message_to_protocol_data(
-                EventType.GROUP_NEW_MSG, message
-            )
+            data = await self._message_to_protocol_data(EventType.GROUP_NEW_MSG, message)
             if images := data.get("Images"):
                 msg_bodys.append(
-                    {"Content": data.get("Content"), "Image": data.get("Images")[0]},
+                    {
+                        "Content": data.get("Content"),
+                        "Image": data.get("Images")[0]
+                    },
                 )
                 if text := data.get("Content"):
                     news.append({"text": f"QQ用户: {text}[图片]"})
@@ -545,12 +351,18 @@ class Bot(BaseBot):
                     news.append({"text": "QQ用户: [图片]"})
                 for image in images[1:]:
                     msg_bodys.append(
-                        {"Image": image},
+                        {
+                            "Image": image
+                        },
                     )
                     news.append({"text": "QQ用户: [图片]"})
             else:
                 if text := data.get("Content"):
-                    msg_bodys.append({"Content": text})
+                    msg_bodys.append(
+                        {
+                            "Content": text
+                        }
+                    )
                     news.append({"text": f"QQ用户: {text}"})
         json_template["meta"]["detail"]["news"] = news[:4]
         json_template["meta"]["detail"]["summary"] = f"查看{len(msg_bodys)}条转发消息"
@@ -571,15 +383,17 @@ class Bot(BaseBot):
             method="GET",
             url=url,
             headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0"
-            },
-            timeout=15,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36 Edg/127.0.0.0"},
+            timeout=15
         )
         res = await self.adapter.request(req)
         return res.content
 
-    @API
-    async def get_group_file_url(self, group_id: int, fileid: str):
+    async def get_group_file_url(
+            self,
+            group_id: int,
+            fileid: str
+    ):
         """
         获取群文件的下载链接
         :param group_id: 群号
@@ -587,12 +401,16 @@ class Bot(BaseBot):
         :return:
         """
         request = self.build_request(
-            {"OpCode": 1750, "ToUin": group_id, "FileId": fileid}, cmd="SsoGroup.File"
+            {
+                "OpCode": 1750,
+                "ToUin": group_id,
+                "FileId": fileid
+            },
+            cmd="SsoGroup.File"
         )
         res = await self.post(request)
         return res
 
-    @API
     async def upload_group_file(
             self,
             group_id: int,
@@ -613,7 +431,7 @@ class Bot(BaseBot):
             "CommandId": 71,
             "FileName": filename,
             "Notify": notify,
-            "ToUin": group_id,
+            "ToUin": group_id
         }
         if data_type == FileType.TYPE_URL:
             req["FileUrl"] = data
@@ -627,7 +445,6 @@ class Bot(BaseBot):
         res = await self.post(request, path="/v1/upload", funcname="", timeout=120)
         return res
 
-    @API
     async def upload_image_voice(
             self,
             command_id: int,
@@ -658,7 +475,6 @@ class Bot(BaseBot):
             uploadresponse.Height, uploadresponse.Width = height, width
         return uploadresponse
 
-    @API
     async def send_group_msg(
             self,
             group_id: int,
@@ -678,12 +494,11 @@ class Bot(BaseBot):
         request = self.build_request(payload)
         return await self.post(request)
 
-    @API
     async def send_private_msg(
             self,
             user_id: int,
             message: Union[str, Message, MessageSegment],
-            group_id: Optional[int] = None,
+            group_id: Optional[int] = None
     ) -> Optional[SendMsgResponse]:
         """
         发送好友消息与临时会话消息
@@ -693,15 +508,20 @@ class Bot(BaseBot):
         :return: api返回的数据
         """
         data = await self._message_to_protocol_data(EventType.GROUP_NEW_MSG, message)
-        payload = {"ToUin": user_id, "ToType": 3 if group_id else 1} | data
+        payload = {
+                      "ToUin": user_id,
+                      "ToType": 3 if group_id else 1
+                  } | data
         if group_id:
             payload["GroupCode"] = group_id
         request = self.build_request(payload)
         return await self.post(request)
 
-    @API
     async def revoke_group_msg(
-            self, group_id: int, msg_seq: int, msg_random: int
+            self,
+            group_id: int,
+            msg_seq: int,
+            msg_random: int
     ) -> Optional[SendMsgResponse]:
         """
         撤回群消息
@@ -710,63 +530,73 @@ class Bot(BaseBot):
         :param msg_random: msg_random
         :return: api返回的数据
         """
-        payload = {"GroupCode": group_id, "MsgSeq": msg_seq, "MsgRandom": msg_random}
+        payload = {
+            "GroupCode": group_id,
+            "MsgSeq": msg_seq,
+            "MsgRandom": msg_random
+        }
         request = self.build_request(payload, cmd="GroupRevokeMsg")
         return await self.post(request)
 
     async def _message_to_protocol_data(
-            self, event_type: EventType, message: Union[str, Message, MessageSegment]
+        self,
+        event_type: EventType,
+        message: Union[str, Message, MessageSegment]
     ) -> dict:
         """
-        message对象转换成OPQ需要的数据
-        :param event_type: EventType对象
-        :param message: message对象
-        :return:
+        将 Message 对象转换成 OPQ 协议所需数据
         """
-        message = Message(message)
+        message = Message(message)  # 确保是 Message 对象
         Content = ""
         images = []
+        at_uin_lists = []
+
         for segment in message:
             if segment.type == "text":
                 Content += segment.data.get("text", "")
             elif segment.type == "image":
-                if all(
-                        segment.data.get(key) for key in ["FileId", "FileMd5", "FileSize"]
-                ):
-                    # 直接从OPQ拿到的图片
-                    images.append(
-                        {
-                            "FileId": segment.data.get("FileId", None),
-                            "FileMd5": segment.data.get("FileMd5", None),
-                            "FileSize": segment.data.get("FileSize", None),
-                            "Height": segment.data.get("Height", None),
-                            "Width": segment.data.get("Width", None),
-                        }
-                    )
-                else:  # 手动发送的图
+                if all(segment.data.get(key) for key in ["FileId", "FileMd5", "FileSize"]):
+                    images.append({
+                        "FileId": segment.data["FileId"],
+                        "FileMd5": segment.data["FileMd5"],
+                        "FileSize": segment.data["FileSize"],
+                        "Height": segment.data.get("Height"),
+                        "Width": segment.data.get("Width")
+                    })
+                else:
                     img = await self.upload_image_voice(
-                        command_id=2 if event_type == EventType.GROUP_NEW_MSG else 1,
-                        file=segment.data.get("file"),
+                        2 if event_type == EventType.GROUP_NEW_MSG else 1,
+                        file=segment.data.get("file")
                     )
-                    images.append(
-                        {
-                            "FileId": img.FileId,
-                            "FileMd5": img.FileMd5,
-                            "FileSize": img.FileSize,
-                            "Height": img.Height,
-                            "Width": img.Width,
-                        }
-                    )
+                    images.append({
+                        "FileId": img.FileId,
+                        "FileMd5": img.FileMd5,
+                        "FileSize": img.FileSize,
+                        "Height": img.Height,
+                        "Width": img.Width,
+                    })
+            elif segment.type == "at":
+                uin = segment.data.get("uin")
+                if uin:
+                    at_uin_lists.append({"Uin": uin})
+                    Content += f"@{uin} "
+            elif segment.type == "atall":
+                at_uin_lists.append({"Uin": 0})
+                Content += "@全体成员 "
+
         payload = {
-            "Content": Content if Content != "" else None,  # Content为空必须是None
-            "Images": images,
+            "Content": Content or None,
+            "AtUinLists": at_uin_lists or None,
+            "Images": images or None,
         }
         return payload
+
+
 
     @override
     async def send(
             self,
-            event: Union[GroupMessageEvent, FriendMessageEvent],
+            event: Event,
             message: Union[str, Message, MessageSegment],
             **kwargs: Any,
     ):
@@ -777,18 +607,22 @@ class Bot(BaseBot):
         :return: api返回数据
         """
         if event.__type__ == EventType.GROUP_NEW_MSG:  # 群聊
-            return await self.send_group_msg(group_id=event.group_id, message=message)
+            return await self.send_group_msg(
+                group_id=event.group_id,
+                message=message
+            )
         elif event.__type__ == EventType.FRIEND_NEW_MSG:  # 好友和私聊
             return await self.send_private_msg(
-                user_id=event.user_id, group_id=event.group_id, message=message
+                user_id=event.user_id,
+                group_id=event.group_id,
+                message=message
             )
         else:
             raise ValueError(f"Unknown supped event: {event.__type__}")
 
-    @API
     async def reply(
             self,
-            event: Union[GroupMessageEvent, FriendMessageEvent],
+            event: Event,
             message: Union[str, Message, MessageSegment],
     ) -> SendMsgResponse:
         """
@@ -802,14 +636,12 @@ class Bot(BaseBot):
         else:
             data = await self._message_to_protocol_data(event.__type__, message)
             payload = {
-                          "ToUin": (
-                              event.group_id if event.message_type == "group" else event.user_id
-                          ),
+                          "ToUin": event.group_id if event.message_type == "group" else event.user_id,
                           "ToType": 2 if event.message_type == "group" else 1,
                           "ReplyTo": {
                               "MsgSeq": event.message_id.seq,
                               "MsgTime": event.message_id.time,
-                              "MsgUid": event.message_id.uid,
+                              "MsgUid": event.message_id.uid
                           },
                       } | data
             request = self.build_request(payload)

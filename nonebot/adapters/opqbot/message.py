@@ -17,12 +17,10 @@ class MessageSegment(BaseMessageSegment["Message"]):
 
     @override
     def __str__(self) -> str:
-        # print(f">>>>>{self.data}")
         return self.data["text"] if self.is_text() else f"[{self.type}: {self.data}]"
 
     @staticmethod
     def text(text: str) -> "MessageSegment":
-        # print(text)
         return MessageSegment(type="text", data={"text": text})
 
     @override
@@ -30,32 +28,40 @@ class MessageSegment(BaseMessageSegment["Message"]):
         return self.type == "text"
 
     @staticmethod
-    def image(
-            file: Union[str, bytes, BytesIO, Path],
-    ) -> "MessageSegment":
+    def image(file: Union[str, bytes, BytesIO, Path]) -> "MessageSegment":
         return MessageSegment(type="image", data={
             "file": file
         })
 
     @staticmethod
-    def voice(
-            file: Union[str, bytes, BytesIO, Path],
-            voice_time: int = 15,
-    ) -> "MessageSegment":
+    def voice(file: Union[str, bytes, BytesIO, Path], voice_time: int = 15) -> "MessageSegment":
         return MessageSegment(type="voice", data={
             "file": file,
             "VoiceTime": voice_time,
         })
 
     @staticmethod
-    def file(
-            filename: str,
-            file: Union[str, bytes, BytesIO, Path]
-    ) -> "MessageSegment":
+    def file(filename: str, file: Union[str, bytes, BytesIO, Path]) -> "MessageSegment":
         return MessageSegment(type="file", data={
             "file": file,
             "filename": filename
         })
+
+    @staticmethod
+    def at(uin: int) -> "MessageSegment":
+        """
+        创建一个 @ 用户段
+        :param uin: 用户UIN（QQ号）
+        """
+        return MessageSegment(type="at", data={"uin": uin})
+
+    @staticmethod
+    def atall() -> "MessageSegment":
+        """
+        创建一个 @全体成员 段
+        """
+        return MessageSegment(type="atall", data={})
+
 
 
 class Message(BaseMessage[MessageSegment]):
