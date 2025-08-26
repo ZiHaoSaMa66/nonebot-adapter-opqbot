@@ -79,9 +79,27 @@ class Message(BaseMessage[MessageSegment]):
 
     @staticmethod
     def build_message(msg_body: MsgBody) -> "Message":
-        msg = [
-            MessageSegment(type="text", data={"text": msg_body.Content})
-        ] if msg_body.Content != "" else []  # 文字消息应该只会出现一条或者没有
+        msg: list[MessageSegment] = []
+
+        text = msg_body.Content or ""
+        if ats := msg_body.AtUinLists:
+            # 按照 at 列表逐个替换文本中的 @昵称
+            for at in ats:
+                nick = at.Nick
+                uin = at.Uin
+                at_text = f"@{nick}"
+                if at_text in text:
+                    # 拆成前 + at段 + 后
+                    before, _, after = text.partition(at_text)
+                    if before:
+                        msg.append(MessageSegment.text(before))
+                    msg.append(MessageSegment(type="at", data={"uin": at}))
+                    text = after
+            if text:  # 剩余的普通文本
+                msg.append(MessageSegment.text(text))
+        elif text:
+            msg.append(MessageSegment.text(text))
+
         if images := msg_body.Images:
             for image in images:
                 msg.append(MessageSegment(type="image", data=image.model_dump()))
@@ -89,4 +107,8 @@ class Message(BaseMessage[MessageSegment]):
             msg.append(MessageSegment(type="file", data=file.model_dump()))
         elif voice := msg_body.Voice:
             msg.append(MessageSegment(type="voice", data=voice.model_dump()))
-        return Message(msg) if msg != [] else Message("")
+
+        print("debug get msg list")
+        print(msg)
+        return Message(msg) if msg else Message("")
+
